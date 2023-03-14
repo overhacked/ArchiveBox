@@ -141,7 +141,7 @@ class TimedProgress:
 
         self.SHOW_PROGRESS = SHOW_PROGRESS
         if self.SHOW_PROGRESS:
-            self.p = Process(target=progress_bar, args=(seconds, prefix))
+            self.p = Process(target=timed_progress_bar, args=(seconds, prefix))
             self.p.start()
 
         self.stats = {'start_ts': datetime.now(timezone.utc), 'end_ts': None}
@@ -179,55 +179,62 @@ class TimedProgress:
 
 
 @enforce_types
-def progress_bar(seconds: int, prefix: str='') -> None:
-    """show timer in the form of progress bar, with percentage and seconds remaining"""
-    chunk = '█' if PYTHON_ENCODING == 'UTF-8' else '#'
-    last_width = TERM_WIDTH()
-    chunks = last_width - len(prefix) - 20  # number of progress chunks to show (aka max bar width)
+def timed_progress_bar(seconds: int, prefix: str='', refresh: int=60) -> None:
     try:
-        for s in range(seconds * chunks):
-            max_width = TERM_WIDTH()
-            if max_width < last_width:
-                # when the terminal size is shrunk, we have to write a newline
-                # otherwise the progress bar will keep wrapping incorrectly
-                sys.stdout.write('\r\n')
-                sys.stdout.flush()
-            chunks = max_width - len(prefix) - 20
-            pct_complete = s / chunks / seconds * 100
-            log_pct = (log(pct_complete or 1, 10) / 2) * 100  # everyone likes faster progress bars ;)
-            bar_width = round(log_pct/(100/chunks))
-            last_width = max_width
+        for s in range(seconds * refresh):
+            elapsed_sec = round(s / refresh)
+            progress_bar(elapsed_sec, seconds, units='sec')
+            time.sleep(1 / refresh)
 
-            # ████████████████████           0.9% (1/60sec)
-            sys.stdout.write('\r{0}{1}{2}{3} {4}% ({5}/{6}sec)'.format(
-                prefix,
-                ANSI['green' if pct_complete < 80 else 'lightyellow'],
-                (chunk * bar_width).ljust(chunks),
-                ANSI['reset'],
-                round(pct_complete, 1),
-                round(s/chunks),
-                seconds,
-            ))
-            sys.stdout.flush()
-            time.sleep(1 / chunks)
+        progress_bar(seconds, seconds, units='sec')
 
-        # ██████████████████████████████████ 100.0% (60/60sec)
-        sys.stdout.write('\r{0}{1}{2}{3} {4}% ({5}/{6}sec)'.format(
-            prefix,
-            ANSI['red'],
-            chunk * chunks,
-            ANSI['reset'],
-            100.0,
-            seconds,
-            seconds,
-        ))
-        sys.stdout.flush()
         # uncomment to have it disappear when it hits 100% instead of staying full red:
         # time.sleep(0.5)
         # sys.stdout.write('\r{}{}\r'.format((' ' * TERM_WIDTH()), ANSI['reset']))
         # sys.stdout.flush()
     except (KeyboardInterrupt, BrokenPipeError):
         print()
+
+@enforce_types
+def progress_bar(current: int, total: int, units: str='', prefix: str='', use_log_bar: bool=True) -> None:
+    """show timer in the form of progress bar, with percentage and seconds remaining"""
+    chunk = '█' if PYTHON_ENCODING == 'UTF-8' else '#'
+    if not hasattr(progress_bar, 'last_width'):
+        progress_bar.last_width = TERM_WIDTH()
+    current_width = TERM_WIDTH()
+    if current_width < progress_bar.last_width:
+        # when the terminal size is shrunk, we have to write a newline
+        # otherwise the progress bar will keep wrapping incorrectly
+        sys.stdout.write('\r\n')
+        sys.stdout.flush()
+    pct_complete = current / total * 100
+    bar_pct = (log(pct_complete or 1, 10) / 2) * 100 if use_log_bar else pct_complete  # everyone likes faster progress bars ;)
+    bar_meta = ' {0}% ({1}/{2}{3})'.format(
+        round(pct_complete, 1) if pct_complete < 100 else 100.0,
+        current,
+        total,
+        units,
+    )
+    chunks = current_width - len(prefix) - len(bar_meta)  # number of progress chunks to show (aka max bar width)
+    bar_width = round(bar_pct/(100/chunks))
+    progress_bar.last_width = current_width
+
+    if pct_complete < 80:
+        bar_color = ANSI['green']
+    elif pct_complete >= 100:
+        bar_color = ANSI['red']
+    else:
+        bar_color = ANSI['lightyellow']
+
+    # ████████████████████           0.9% (1/60sec)
+    sys.stdout.write('\r{0}{1}{2}{3}{4}'.format(
+        prefix,
+        bar_color,
+        (chunk * bar_width).ljust(chunks),
+        ANSI['reset'],
+        bar_meta,
+    ))
+    sys.stdout.flush()
 
 
 def log_cli_command(subcommand: str, subcommand_args: List[str], stdin: Optional[str], pwd: str):
