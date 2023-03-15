@@ -29,13 +29,13 @@ from ..config import (
 )
 from ..logging_util import (
     TimedProgress,
+    ProgressBar,
     log_indexing_process_started,
     log_indexing_process_finished,
     log_indexing_started,
     log_indexing_finished,
     log_parsing_finished,
     log_deduping_finished,
-    progress_bar,
 )
 
 from .schema import Link, ArchiveResult
@@ -408,13 +408,18 @@ def snapshot_filter(snapshots: QuerySet, filter_patterns: List[str], filter_type
 
 def get_links_for_snapshots(snapshots) -> List[Optional[Link]]:
     """read links from JSON with progress reporting"""
+    import multiprocessing
+
+    from core.models import Snapshot
+
     num_links = snapshots.count()
     links = []
+    progress = ProgressBar(num_links, prefix='Loading ', units='links')
     for idx, snapshot in enumerate(snapshots.iterator()):
-        progress_bar(idx + 1, num_links, use_log_bar=False, prefix='Loading ', units='links')
+        progress.update(idx + 1)
         link = snapshot.as_link_with_details()
         links.append(link)
-    print( )
+    progress.end()
     return links
 
 def get_indexed_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Optional[Link]]:
