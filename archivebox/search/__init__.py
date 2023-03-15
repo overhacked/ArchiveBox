@@ -5,6 +5,7 @@ from importlib import import_module
 from django.db.models import QuerySet
 
 from archivebox.index.schema import Link
+from archivebox.logging_util import progress_bar
 from archivebox.util import enforce_types
 from archivebox.config import stderr, OUTPUT_DIR, USE_INDEXING_BACKEND, USE_SEARCHING_BACKEND, SEARCH_BACKEND_ENGINE
 
@@ -91,11 +92,15 @@ def index_links(links: Union[List[Link],None], out_dir: Path=OUTPUT_DIR):
 
     from core.models import Snapshot, ArchiveResult
 
-    for link in links:
+    num_links: int = len(links)
+    for idx, link in enumerate(links):
         snap = Snapshot.objects.filter(url=link.url).first()
         if snap: 
             results = ArchiveResult.objects.indexable().filter(snapshot=snap)
             log_index_started(link.url)
+            print( )
+            progress_bar(idx + 1, num_links, use_log_bar=False)
+            print( )
             try:
                 texts = get_indexable_content(results)
             except Exception as err:
