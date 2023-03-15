@@ -30,12 +30,14 @@ def get_indexable_content(results: QuerySet):
         return []
     # Only use the first method available
     res, method = results.first(), results.first().extractor
-    if method not in ('readability', 'singlefile', 'dom', 'wget'):
+    if method not in ('readability', 'mercury', 'singlefile', 'dom', 'wget'):
         return []
     # This should come from a plugin interface
 
     # TODO: banish this duplication and get these from the extractor file
     if method == 'readability':
+        return get_file_result_content(res, 'content.txt', use_pwd=True)
+    elif method == 'mercury':
         return get_file_result_content(res, 'content.txt', use_pwd=True)
     elif method == 'singlefile':
         return get_file_result_content(res, '', use_pwd=True)
