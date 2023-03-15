@@ -11,7 +11,7 @@ from multiprocessing import Process
 from pathlib import Path
 
 from datetime import datetime, timezone
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional, List, Dict, Union, IO, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -167,13 +167,7 @@ class TimedProgress:
                 self.p.terminate()
                 self.p.join()
 
-
-                # clear whole terminal line
-                try:
-                    sys.stdout.write('\r{}{}\r'.format((' ' * TERM_WIDTH()), ANSI['reset']))
-                except (IOError, BrokenPipeError):
-                    # ignore when the parent proc has stopped listening to our stdout
-                    pass
+                clear_terminal_line()
             except ValueError:
                 pass
 
@@ -188,12 +182,31 @@ def timed_progress_bar(seconds: int, prefix: str='', refresh: int=60) -> None:
 
         progress_bar(seconds, seconds, units='sec')
 
-        # uncomment to have it disappear when it hits 100% instead of staying full red:
-        # time.sleep(0.5)
-        # sys.stdout.write('\r{}{}\r'.format((' ' * TERM_WIDTH()), ANSI['reset']))
-        # sys.stdout.flush()
     except (KeyboardInterrupt, BrokenPipeError):
         print()
+
+
+@dataclass
+class ProgressBar:
+    """Display an externally-updatable progress bar"""
+
+    total: int
+    units: str = ''
+    prefix: str = ''
+    SHOW_PROGRESS: bool = field(default=SHOW_PROGRESS, init=False)
+
+    def __post_init__(self):
+        self.update(0)
+
+    def update(self, current: int):
+        progress_bar(current, self.total, units=self.units, prefix=self.prefix, use_log_bar=False)
+
+    def end(clear: bool=False):
+        if clear:
+            clear_terminal_line()
+        else:
+            print()
+
 
 @enforce_types
 def progress_bar(current: int, total: int, units: str='', prefix: str='', use_log_bar: bool=True) -> None:
@@ -235,6 +248,14 @@ def progress_bar(current: int, total: int, units: str='', prefix: str='', use_lo
         bar_meta,
     ))
     sys.stdout.flush()
+
+
+def clear_terminal_line() -> None:
+    try:
+        sys.stdout.write('\r{}{}\r'.format((' ' * TERM_WIDTH()), ANSI['reset']))
+    except (IOError, BrokenPipeError):
+        # ignore when the parent proc has stopped listening to our stdout
+        pass
 
 
 def log_cli_command(subcommand: str, subcommand_args: List[str], stdin: Optional[str], pwd: str):
