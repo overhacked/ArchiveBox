@@ -59,7 +59,7 @@ def get_default_archive_methods():
         ('archive_org', should_save_archive_dot_org, save_archive_dot_org),
     ]
 
-ARCHIVE_METHODS_INDEXING_PRECEDENCE = [('readability', 1), ('singlefile', 2), ('dom', 3), ('wget', 4)]
+ARCHIVE_METHODS_INDEXING_PRECEDENCE = [('readability', 1), ('mercury', 2), ('singlefile', 3), ('dom', 4), ('wget', 5)]
 
 @enforce_types
 def ignore_methods(to_ignore: List[str]):
