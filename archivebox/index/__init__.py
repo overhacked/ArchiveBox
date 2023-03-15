@@ -35,6 +35,7 @@ from ..logging_util import (
     log_indexing_finished,
     log_parsing_finished,
     log_deduping_finished,
+    progress_bar,
 )
 
 from .schema import Link, ArchiveResult
@@ -405,9 +406,20 @@ def snapshot_filter(snapshots: QuerySet, filter_patterns: List[str], filter_type
         return search_filter(snapshots, filter_patterns, filter_type)
 
 
+def get_links_for_snapshots(snapshots) -> List[Optional[Link]]:
+    """read links from JSON with progress reporting"""
+    num_links = snapshots.count()
+    links = []
+    for idx, snapshot in enumerate(snapshots.iterator()):
+        progress_bar(idx + 1, num_links, use_log_bar=False, prefix='Loading ', units='links')
+        link = snapshot.as_link_with_details()
+        links.append(link)
+    print( )
+    return links
+
 def get_indexed_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Optional[Link]]:
     """indexed links without checking archive status or data directory validity"""
-    links = [snapshot.as_link_with_details() for snapshot in snapshots.iterator()]
+    links = get_links_for_snapshots(snapshots)
     return {
         link.link_dir: link
         for link in links
@@ -415,7 +427,7 @@ def get_indexed_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Option
 
 def get_archived_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Optional[Link]]:
     """indexed links that are archived with a valid data directory"""
-    links = [snapshot.as_link_with_details() for snapshot in snapshots.iterator()]
+    links = get_links_for_snapshots(snapshots)
     return {
         link.link_dir: link
         for link in filter(is_archived, links)
@@ -423,7 +435,7 @@ def get_archived_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Optio
 
 def get_unarchived_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Optional[Link]]:
     """indexed links that are unarchived with no data directory or an empty data directory"""
-    links = [snapshot.as_link_with_details() for snapshot in snapshots.iterator()]
+    links = get_links_for_snapshots(snapshots)
     return {
         link.link_dir: link
         for link in filter(is_unarchived, links)
@@ -448,7 +460,7 @@ def get_present_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Option
 
 def get_valid_folders(snapshots, out_dir: Path=OUTPUT_DIR) -> Dict[str, Optional[Link]]:
     """dirs with a valid index matched to the main index and archived content"""
-    links = [snapshot.as_link_with_details() for snapshot in snapshots.iterator()]
+    links = get_links_for_snapshots(snapshots)
     return {
         link.link_dir: link
         for link in filter(is_valid, links)
