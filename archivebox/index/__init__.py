@@ -415,10 +415,11 @@ def get_links_for_snapshots(snapshots) -> List[Optional[Link]]:
     num_links = snapshots.count()
     links = []
     progress = ProgressBar(num_links, prefix='Loading ', units='links')
-    for idx, snapshot in enumerate(snapshots.iterator()):
-        progress.update(idx + 1)
-        link = snapshot.as_link_with_details()
-        links.append(link)
+    with multiprocessing.Pool() as pool:
+        links_job = pool.imap_unordered(Snapshot.as_link_with_details, snapshots.iterator(), 50)
+        for idx, link in enumerate(links_job):
+            progress.update(idx + 1)
+            links.append(link)
     progress.end()
     return links
 
