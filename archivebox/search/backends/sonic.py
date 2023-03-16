@@ -8,45 +8,16 @@ from archivebox.util import enforce_types
 from archivebox.config import SEARCH_BACKEND_HOST_NAME, SEARCH_BACKEND_PORT, SEARCH_BACKEND_PASSWORD, SONIC_BUCKET, SONIC_COLLECTION
 
 MAX_SONIC_TEXT_TOTAL_LENGTH = 1000000     # dont index more than 1 million characters per text
-# Overhead: 'PUSH ' + SONIC_BUCKET + ' ' + SONIC_COLLECTION + ' ' + Snapshot.id + '  "' + ...data... + '"\n'
-SONIC_PUSH_PROTOCOL_OVERHEAD = 5 + len(SONIC_BUCKET) + 1 + len(SONIC_COLLECTION) + 1 + 36 + 3 + 4
-SONIC_BUFSIZE = 20000
 MAX_SONIC_ERRORS_BEFORE_ABORT = 5
 
 @enforce_types
 def index(snapshot_id: str, texts: List[str]):
     error_count = 0
     with IngestClient(SEARCH_BACKEND_HOST_NAME, SEARCH_BACKEND_PORT, SEARCH_BACKEND_PASSWORD) as ingestcl:
-        max_sonic_chunk_length = round((SONIC_BUFSIZE - SONIC_PUSH_PROTOCOL_OVERHEAD) * 0.9)
-        sonic_bufsize_remaining = SONIC_BUFSIZE - max_sonic_chunk_length
         for text in texts:
             text_len = min(len(text), MAX_SONIC_TEXT_TOTAL_LENGTH)
-            chunks = (
-                text[i:i+max_sonic_chunk_length]
-                for i in range(
-                    0,
-                    text_len,
-                    max_sonic_chunk_length,
-                )
-            )
-            num_chunks = ceil(text_len / max_sonic_chunk_length)
-            progress = ProgressBar(num_chunks, prefix='Chunks ')
             try:
-                for idx, chunk in enumerate(chunks):
-                    # Sonic protocol escapes quotes with backslashes, doubling the number
-                    # of bytes required. If this exceeds the overhead available in the buffer,
-                    # then split the chunk and submit it as two chunks.
-                    chunk = str(chunk)
-                    num_quotes = chunk.count('"')
-                    chunk_remainder = None
-                    if num_quotes > sonic_bufsize_remaining:
-                        chunk_remainder = chunk[-num_quotes:]
-                        chunk = chunk[:-num_quotes]
-                    ingestcl.push(SONIC_COLLECTION, SONIC_BUCKET, snapshot_id, chunk)
-                    if chunk_remainder is not None:
-                        ingestcl.push(SONIC_COLLECTION, SONIC_BUCKET, snapshot_id, chunk_remainder)
-                    progress.update(idx + 1)
-                progress.end()
+                ingestcl.push_chunked(SONIC_COLLECTION, SONIC_BUCKET, snapshot_id, text[:text_len])
             except Exception as err:
                 print(f'\n[!] Sonic search backend threw an error while indexing: {err.__class__.__name__} {err}')
                 error_count += 1
