@@ -192,12 +192,15 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
         'USE_SEARCHING_BACKEND':    {'type': bool,  'default': True},
         'SEARCH_BACKEND_ENGINE':    {'type': str,   'default': 'ripgrep'},
         'SEARCH_BACKEND_HOST_NAME': {'type': str,   'default': 'localhost'},
-        'SEARCH_BACKEND_PORT':      {'type': int,   'default': 1491},
-        'SEARCH_BACKEND_PASSWORD':  {'type': str,   'default': 'SecretPassword'},
+        'SEARCH_BACKEND_PORT':      {'type': int,   'default': lambda c: {'sonic': 1491, 'meilisearch': 7700}.get(c['SEARCH_BACKEND_ENGINE'], None)},
+        'SEARCH_BACKEND_PASSWORD':  {'type': str,   'default': lambda c: {'sonic': 'SecretPassword'}.get(c['SEARCH_BACKEND_ENGINE'], None)},
+        'SEARCH_BACKEND_TIMEOUT':   {'type': int,   'default': 90},
         # SONIC
         'SONIC_COLLECTION':         {'type': str,   'default': 'archivebox'},
         'SONIC_BUCKET':             {'type': str,   'default': 'snapshots'},
-        'SEARCH_BACKEND_TIMEOUT':   {'type': int,   'default': 90},
+        # MEILISEARCH
+        'MEILISEARCH_INDEX':        {'type': str,   'default': 'archivebox'},
+        'MEILISEARCH_URI_SCHEME':   {'type': str,   'default': 'http'},
     },
 
     'DEPENDENCY_CONFIG': {
@@ -328,6 +331,7 @@ ALLOWED_IN_OUTPUT_DIR = {
     'yarn.lock',
     'static',
     'sonic',
+    'meilisearch',
     ARCHIVE_DIR_NAME,
     SOURCES_DIR_NAME,
     LOGS_DIR_NAME,
