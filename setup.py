@@ -52,6 +52,9 @@ EXTRAS_REQUIRE = {
     'sonic': [
         "sonic-client>=0.0.5",
     ],
+    'meilisearch': [
+        "meilisearch~=0.25.0",
+    ],
     'dev': [
         "setuptools",
         "twine",
