@@ -92,6 +92,8 @@ from .config import (
     SQL_INDEX_FILENAME,
     ALLOWED_IN_OUTPUT_DIR,
     SEARCH_BACKEND_ENGINE,
+    USE_INDEXING_BACKEND,
+    USE_SEARCHING_BACKEND,
     check_dependencies,
     check_data_folder,
     write_config_file,
@@ -131,7 +133,7 @@ from .logging_util import (
     printable_dependency_version,
 )
 
-from .search import flush_search_index, index_links
+from .search import flush_search_index, index_links, import_backend
 
 
 
@@ -1036,6 +1038,12 @@ def setup(out_dir: Path=OUTPUT_DIR) -> None:
             stderr(f'[X] Failed to install npm packages: {e}', color='red')
             hint(f'Try deleting {out_dir}/node_modules and running it again')
             raise SystemExit(1)
+
+    if USE_INDEXING_BACKEND or USE_SEARCHING_BACKEND:
+        backend = import_backend()
+        if hasattr(backend, 'setup') and callable(backend.setup):
+            stderr('\n[+] Configuring {} search backend...'.format(SEARCH_BACKEND_ENGINE), color='green')
+            backend.setup(out_dir)
 
     stderr('\n[√] Set up ArchiveBox and its dependencies successfully.', color='green')
     
