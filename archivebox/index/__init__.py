@@ -408,14 +408,14 @@ def snapshot_filter(snapshots: QuerySet, filter_patterns: List[str], filter_type
 
 def get_links_for_snapshots(snapshots) -> List[Optional[Link]]:
     """read links from JSON with progress reporting"""
-    from multiprocessing.dummy import Pool
+    import multiprocessing
 
     from core.models import Snapshot
 
     num_links = snapshots.count()
     links = []
     progress = ProgressBar(num_links, prefix='Loading ', units='links')
-    with Pool() as pool:
+    with multiprocessing.Pool() as pool:
         links_job = pool.imap_unordered(Snapshot.as_link_with_details, snapshots.iterator(), 50)
         for idx, link in enumerate(links_job):
             progress.update(idx + 1)
