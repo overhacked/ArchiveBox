@@ -17,6 +17,8 @@ MEILISEARCH_HOST_URI = '{}://{}:{}'.format(
     SEARCH_BACKEND_PORT
 )
 
+MEILISEARCH_RESULTS_LIMIT = 1000
+
 
 @enforce_types
 def _connect_index() -> meilisearch.index.Index:
@@ -111,6 +113,7 @@ def search(text: str) -> List[str]:
     result = index.search(
         text,
         {
+            'limit': MEILISEARCH_RESULTS_LIMIT,
             'attributesToRetrieve': ['snapshot_id'],
         }
     )
