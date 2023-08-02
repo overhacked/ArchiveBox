@@ -6,11 +6,14 @@ from datetime import datetime, timezone
 
 from xml.etree import ElementTree
 
+from ..config import PINBOARD_CLEAN_TITLE
 from ..index.schema import Link
 from ..util import (
     htmldecode,
     enforce_types,
 )
+
+TITLE_STRIP_PREFIXES = [f'[{tag}]' for tag in PINBOARD_CLEAN_TITLE]
 
 
 @enforce_types
@@ -32,6 +35,10 @@ def parse_pinboard_rss_export(rss_file: IO[str], **_kwargs) -> Iterable[Link]:
             # Yielding a Link with no URL will
             # crash on a URL validation assertion
             continue
+
+        for tag in TITLE_STRIP_PREFIXES:
+            if title.startswith(tag):
+                title = title[len(tag) + 1:]
 
         # Pinboard includes a colon in its date stamp timezone offsets, which
         # Python can't parse. Remove it:

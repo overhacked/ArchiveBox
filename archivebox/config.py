@@ -187,6 +187,10 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
         'FAVICON_PROVIDER':         {'type': str,   'default': 'https://www.google.com/s2/favicons?domain={}'},
     },
 
+    'PARSER_CONFIG': {
+        'PINBOARD_CLEAN_TITLE':     {'type': list,  'default': ['priv', 'toread']}
+    },
+
     'SEARCH_BACKEND_CONFIG' : {
         'USE_INDEXING_BACKEND':     {'type': bool,  'default': True},
         'USE_SEARCHING_BACKEND':    {'type': bool,  'default': True},
