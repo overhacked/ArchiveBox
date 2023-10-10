@@ -47,10 +47,14 @@ INSTALL_REQUIRES = [
     "croniter>=0.3.34",
     "w3lib>=1.22.0",
     "ipython>5.0.0",
+    "django-auth-ldap>=4.1.0"
 ]
 EXTRAS_REQUIRE = {
     'sonic': [
         "sonic-client>=0.0.5",
+    ],
+    'meilisearch': [
+        "meilisearch~=0.25.0",
     ],
     'dev': [
         "setuptools",

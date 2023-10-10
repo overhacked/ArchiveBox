@@ -57,8 +57,16 @@ SYSTEM_USER = getpass.getuser() or os.getlogin()
 try:
     import pwd
     SYSTEM_USER = pwd.getpwuid(os.geteuid()).pw_name or SYSTEM_USER
+except KeyError:
+    # Process' UID might not map to a user in cases such as running the Docker image
+    # (where `archivebox` is 999) as a different UID.
+    pass
 except ModuleNotFoundError:
     # pwd is only needed for some linux systems, doesn't exist on windows
+    pass
+except Exception:
+    # this should never happen, uncomment to debug
+    # raise
     pass
 
 ############################### Config Schema ##################################
@@ -86,6 +94,7 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
         'URL_ALLOWLIST':            {'type': str,   'default': None, 'aliases': ('URL_WHITELIST',)},
         'ENFORCE_ATOMIC_WRITES':    {'type': bool,  'default': True},
         'TAG_SEPARATOR_PATTERN':    {'type': str,   'default': r'[,]'},
+        'USE_TIMESTAMP_AS_ADDED':   {'type': bool,  'default': False},
     },
 
     'SERVER_CONFIG': {
@@ -100,12 +109,22 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
         'SNAPSHOTS_PER_PAGE':        {'type': int,   'default': 40},
         'CUSTOM_TEMPLATES_DIR':      {'type': str,   'default': None},
         'TIME_ZONE':                 {'type': str,   'default': 'UTC'},
-        'TIMEZONE':                 {'type': str,   'default': 'UTC'},
+        'TIMEZONE':                  {'type': str,   'default': 'UTC'},
         'REVERSE_PROXY_USER_HEADER': {'type': str,   'default': 'Remote-User'},
         'REVERSE_PROXY_WHITELIST':   {'type': str,   'default': ''},
         'LOGOUT_REDIRECT_URL':       {'type': str,   'default': '/'},
-        'PREVIEW_ORIGINALS':        {'type': bool,  'default': True},
-        'LOGOUT_REDIRECT_URL':   {'type': str,   'default': '/'},
+        'PREVIEW_ORIGINALS':         {'type': bool,  'default': True},
+
+        'LDAP':                      {'type': bool,  'default': False},
+        'LDAP_SERVER_URI':           {'type': str,   'default': None},
+        'LDAP_BIND_DN':              {'type': str,   'default': None},
+        'LDAP_BIND_PASSWORD':        {'type': str,   'default': None},
+        'LDAP_USER_BASE':            {'type': str,   'default': None},
+        'LDAP_USER_FILTER':          {'type': str,   'default': None},
+        'LDAP_USERNAME_ATTR':        {'type': str,   'default': None},
+        'LDAP_FIRSTNAME_ATTR':       {'type': str,   'default': None},
+        'LDAP_LASTNAME_ATTR':        {'type': str,   'default': None},
+        'LDAP_EMAIL_ATTR':           {'type': str,   'default': None},
     },
 
     'ARCHIVE_METHOD_TOGGLES': {
@@ -151,10 +170,7 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
                                                                 '--write-thumbnail',
                                                                 '--no-call-home',
                                                                 '--write-sub',
-                                                                '--all-subs',
-                                                                # There are too many of these and youtube
-                                                                # throttles you with HTTP error 429
-                                                                #'--write-auto-subs',
+                                                                '--write-auto-subs',
                                                                 '--convert-subs=srt',
                                                                 '--yes-playlist',
                                                                 '--continue',
@@ -167,7 +183,7 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
                                                                 '--ignore-errors',
                                                                 '--geo-bypass',
                                                                 '--add-metadata',
-                                                                '--max-filesize={}'.format(c['MEDIA_MAX_SIZE']),
+                                                                '--format=(bv*+ba/b)[filesize<={}][filesize_approx<=?{}]/(bv*+ba/b)'.format(c['MEDIA_MAX_SIZE'], c['MEDIA_MAX_SIZE']),
                                                                 ]},
 
 
@@ -189,17 +205,29 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
         'FAVICON_PROVIDER':         {'type': str,   'default': 'https://www.google.com/s2/favicons?domain={}'},
     },
 
+    'PARSER_CONFIG': {
+        'PINBOARD_CLEAN_TITLE':     {'type': list,  'default': ['priv', 'toread']}
+    },
+
     'SEARCH_BACKEND_CONFIG' : {
         'USE_INDEXING_BACKEND':     {'type': bool,  'default': True},
         'USE_SEARCHING_BACKEND':    {'type': bool,  'default': True},
         'SEARCH_BACKEND_ENGINE':    {'type': str,   'default': 'ripgrep'},
         'SEARCH_BACKEND_HOST_NAME': {'type': str,   'default': 'localhost'},
-        'SEARCH_BACKEND_PORT':      {'type': int,   'default': 1491},
-        'SEARCH_BACKEND_PASSWORD':  {'type': str,   'default': 'SecretPassword'},
+        'SEARCH_BACKEND_PORT':      {'type': int,   'default': lambda c: {'sonic': 1491, 'meilisearch': 7700}.get(c['SEARCH_BACKEND_ENGINE'], None)},
+        'SEARCH_BACKEND_PASSWORD':  {'type': str,   'default': lambda c: {'sonic': 'SecretPassword'}.get(c['SEARCH_BACKEND_ENGINE'], None)},
+        'SEARCH_BACKEND_TIMEOUT':   {'type': int,   'default': 90},
         # SONIC
         'SONIC_COLLECTION':         {'type': str,   'default': 'archivebox'},
         'SONIC_BUCKET':             {'type': str,   'default': 'snapshots'},
-        'SEARCH_BACKEND_TIMEOUT':   {'type': int,   'default': 90},
+        # MEILISEARCH
+        'MEILISEARCH_INDEX':        {'type': str,   'default': 'archivebox'},
+        'MEILISEARCH_URI_SCHEME':   {'type': str,   'default': 'http'},
+        # SQLite3 FTS5
+        'FTS_SEPARATE_DATABASE':    {'type': bool,  'default': True},
+        'FTS_TOKENIZERS':           {'type': str,   'default': 'porter unicode61 remove_diacritics 2'},
+        # Default from https://www.sqlite.org/limits.html#max_length
+        'FTS_SQLITE_MAX_LENGTH':    {'type': int,   'default': int(1e9)},
     },
 
     'DEPENDENCY_CONFIG': {
@@ -228,6 +256,8 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
 
         'POCKET_CONSUMER_KEY':      {'type': str,   'default': None},
         'POCKET_ACCESS_TOKENS':     {'type': dict,  'default': {}},
+
+        'READWISE_READER_TOKENS':     {'type': dict,  'default': {}},
     },
 }
 
@@ -330,6 +360,8 @@ ALLOWED_IN_OUTPUT_DIR = {
     'yarn.lock',
     'static',
     'sonic',
+    'meilisearch',
+    'search.sqlite3',
     ARCHIVE_DIR_NAME,
     SOURCES_DIR_NAME,
     LOGS_DIR_NAME,
