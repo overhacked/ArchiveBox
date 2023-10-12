@@ -217,6 +217,7 @@ CONFIG_SCHEMA: Dict[str, ConfigDefaultDict] = {
         'SEARCH_BACKEND_PORT':      {'type': int,   'default': lambda c: {'sonic': 1491, 'meilisearch': 7700}.get(c['SEARCH_BACKEND_ENGINE'], None)},
         'SEARCH_BACKEND_PASSWORD':  {'type': str,   'default': lambda c: {'sonic': 'SecretPassword'}.get(c['SEARCH_BACKEND_ENGINE'], None)},
         'SEARCH_BACKEND_TIMEOUT':   {'type': int,   'default': 90},
+        'SEARCH_PROCESS_HTML':      {'type': bool,  'default': True},
         # SONIC
         'SONIC_COLLECTION':         {'type': str,   'default': 'archivebox'},
         'SONIC_BUCKET':             {'type': str,   'default': 'snapshots'},
